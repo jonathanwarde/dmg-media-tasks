@@ -11,7 +11,9 @@
  * 
  */
 
-import { Button } from '@wordpress/components';
+import { Button, TextControl, SelectControl } from '@wordpress/components';
+import { useState } from '@wordpress/element';
+import apiFetch from '@wordpress/api-fetch';
 
 const { registerBlockType } = wp.blocks;
 
@@ -20,10 +22,47 @@ registerBlockType('custom-blocks/add-post-button', {
     icon: 'admin-post',
     category: 'layout',
     edit: function(props) {
+        const [isSearching, setIsSearching] = useState(false);
+        const [searchQuery, setSearchQuery] = useState('');
+        const [searchResults, setSearchResults] = useState([]);
+
+        const handleSearch = async () => {
+            const results = await apiFetch({ path: `/wp/v2/posts?search=${searchQuery}` });
+            setSearchResults(results);
+        };
+
         return (
-            <Button isPrimary onClick={console.log('button clicked')}>
-                Add a recent post
-            </Button>
+            <div>
+                {isSearching ? (
+                    <div>
+                        <TextControl
+                            label="Search Posts"
+                            value={searchQuery}
+                            onChange={(value) => {
+                                setSearchQuery(value);
+                                handleSearch();
+                            }}
+                        />
+                        <SelectControl
+                            label="Select a post"
+                            options={[
+                                { value: '', label: 'Select a REcent post...' },
+                                ...searchResults.map((post) => ({
+                                    value: post.id,
+                                    label: post.title.rendered,
+                                })),
+                            ]}
+                            onChange={(selectedPostId) => {
+                                console.log(selectedPostId);
+                            }}
+                        />
+                    </div>
+                ) : (
+                    <Button isPrimary onClick={() => setIsSearching(true)}>
+                        Add a recent post
+                    </Button>
+                )}
+            </div>
         );
     },
     save: function() {
