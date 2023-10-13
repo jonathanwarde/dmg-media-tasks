@@ -11,61 +11,74 @@
  * 
  */
 
-import { Button, TextControl, SelectControl } from '@wordpress/components';
-import { useState } from '@wordpress/element';
-import apiFetch from '@wordpress/api-fetch';
-
-const { registerBlockType } = wp.blocks;
-
-registerBlockType('custom-blocks/add-post-button', {
-    title: 'Add Post Button',
-    icon: 'admin-post',
-    category: 'layout',
-    edit: function(props) {
-        const [isSearching, setIsSearching] = useState(false);
-        const [searchQuery, setSearchQuery] = useState('');
-        const [searchResults, setSearchResults] = useState([]);
-
-        const handleSearch = async () => {
-            const results = await apiFetch({ path: `/wp/v2/posts?search=${searchQuery}` });
-            setSearchResults(results);
-        };
-
-        return (
-            <div>
-                {isSearching ? (
-                    <div>
-                        <TextControl
-                            label="Search Posts"
-                            value={searchQuery}
-                            onChange={(value) => {
-                                setSearchQuery(value);
-                                handleSearch();
-                            }}
-                        />
-                        <SelectControl
-                            label="Select a post"
-                            options={[
-                                { value: '', label: 'Select a REcent post...' },
-                                ...searchResults.map((post) => ({
-                                    value: post.id,
-                                    label: post.title.rendered,
-                                })),
-                            ]}
-                            onChange={(selectedPostId) => {
-                                console.log(selectedPostId);
-                            }}
-                        />
-                    </div>
-                ) : (
-                    <Button isPrimary onClick={() => setIsSearching(true)}>
-                        Add a recent post
-                    </Button>
-                )}
-            </div>
-        );
-    },
-    save: function() {
-        return null;
-    },
-});
+ import { useState } from '@wordpress/element';
+ import { Button, TextControl, PanelBody, PanelRow } from '@wordpress/components';
+ import { useSelect } from '@wordpress/data';
+ import { InspectorControls } from '@wordpress/block-editor';
+ import { registerBlockType } from '@wordpress/blocks';
+ 
+ registerBlockType('custom-blocks/add-post-button', {
+     title: 'Add Post Link',
+     icon: 'admin-post',
+     category: 'layout',
+ 
+     edit: ({ setAttributes, attributes }) => {
+         const [searchTerm, setSearchTerm] = useState('');
+         const [selectedPost, setSelectedPost] = useState(null);
+ 
+         const posts = useSelect((select) => {
+             if (!searchTerm) return [];
+             return select('core').getEntityRecords('postType', 'post', { search: searchTerm, per_page: 10 });
+         }, [searchTerm]);
+ 
+         const insertSelectedPost = () => {
+             if (selectedPost) {
+                 setAttributes({ postLink: selectedPost.link, postTitle: selectedPost.title.rendered });
+             }
+         };
+ 
+         return (
+             <>
+                 <InspectorControls>
+                     <PanelBody title="Search for a Post">
+                         <PanelRow>
+                             <TextControl
+                                 type="search"
+                                 value={searchTerm}
+                                 onChange={value => setSearchTerm(value)}
+                                 placeholder="Search..."
+                             />
+                         </PanelRow>
+                         <PanelRow>
+                             {posts && posts.map(post => (
+                                 <Button isSecondary onClick={() => setSelectedPost(post)}>
+                                     {post.title.rendered}
+                                 </Button>
+                             ))}
+                         </PanelRow>
+                         <PanelRow>
+                             <Button isPrimary onClick={insertSelectedPost}>Insert Selected Post</Button>
+                         </PanelRow>
+                     </PanelBody>
+                 </InspectorControls>
+                 {attributes.postLink && <a href={attributes.postLink} className="dmg-read-more">Read More: {attributes.postTitle}</a>}
+             </>
+         );
+     },
+ 
+     save: ({ attributes }) => {
+         if (attributes.postLink) {
+             return <a href={attributes.postLink} className="dmg-read-more">Read More: {attributes.postTitle}</a>;
+         }
+         return null;
+     },
+ 
+     attributes: {
+         postLink: {
+             type: 'string',
+         },
+         postTitle: {
+             type: 'string',
+         },
+     },
+ });
